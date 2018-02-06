@@ -1,12 +1,8 @@
 
 #include <algorithm>
 #include <cstdlib>
-// #include <cmath>
 
 namespace cascading {
-
-// static const size_t INHERITED = 0
-// static const size_t NATIVE = 1
 
 /****************************************************************************************/
 
@@ -40,43 +36,31 @@ template <typename T> class augmented_entry {
       return *this; // return the result by reference
    }
 
-   utils::entry<utils::e_type> *entry, *predecessor, *successor;
+   utils::ee *entry, *predecessor, *successor;
    const S *bridge;
-   bool entry_type; // 0 inherited, 1 native
+   bool entry_type; // 0 utils::INHERITED, 1 utils::NATIVE
 
-   // void set_entry(T *entry) { this->entry = entry; }
-   void set_predecessor(const T &predecessor) {
-      this->predecessor = &predecessor;
-   }
-   void set_successor(const T &successor) { this->successor = &successor; }
+   void set_predecessor(T &predecessor) { this->predecessor = &predecessor; }
+   void set_successor(T &successor) { this->successor = &successor; }
    void set_bridge(const S &bridge) { this->bridge = &bridge; }
-   // void set_entry_type(bool entry_type) { this->entry_type = entry_type; }
-
-   // void set_entry(T &entry, bool entry_type) {
-   //    this->entry = &entry;
-   //    this->entry_type = entry_type;
-   // }
 };
 
 /****************************************************************************************/
 
 template <typename T, typename S>
-inline cascading::augmented_entry<utils::entry<utils::e_type>> *
+inline cascading::augmented_entry<utils::ee> *
 augment_matrix(const T &matrix, const S &pointers, size_t h, size_t n,
                size_t order) {
 
-   typedef cascading::augmented_entry<utils::entry<utils::e_type>> ae_type;
-
    // sort_by returns either row or column index depending on order
-   utils::sort_by<utils::entry<utils::e_type>> index_type;
+   utils::sort_by<utils::ee> index_type;
 
-   ae_type *index_vector = new ae_type[n]();
-   ae_type *augmented_matrix = new ae_type[3 * h]();
+   auto *index_vector = new cascading::augmented_entry<utils::ee>[n]();
+   auto *augmented_matrix = new cascading::augmented_entry<utils::ee>[3 * h]();
    size_t *augmented_pointers = new size_t[n]();
 
-   size_t even;
-   size_t matr_index = pointers[1]; // n-1 column
-   size_t curr_index(0), prev_index, curr_position, bridge_pt;
+   size_t prev_index, curr_position, bridge_pt, native_pt, inherited_pt, even,
+       matr_index(pointers[1]), curr_index(0);
 
    // copy the last column in the augmented_matrix
    // last column is from pointers[1] to h=nnz(A)
@@ -94,7 +78,9 @@ augment_matrix(const T &matrix, const S &pointers, size_t h, size_t n,
       even = false;
 
       // the predecessor in row/column j is the first element in row/column j+1
-      bridge_pt = prev_index;
+      bridge_pt = augmented_pointers[index - 1];
+      native_pt = -1;
+      inherited_pt = -1;
 
       // current index from pointers[index] to pointers[index + 1]
       // previous index from augmented_pointers[index - 1] to
@@ -122,12 +108,56 @@ augment_matrix(const T &matrix, const S &pointers, size_t h, size_t n,
              matr_index < pointers[index]) {
             augmented_matrix[curr_index] = matrix[matr_index];
 
+            // between two nonconsecutive native entries (one or more inherited
+            // entries may be inbetween) we add pointers to
+            // predecessor/successor
+            if (native_pt > 0 && curr_index != native_pt + 1) {
+               augmented_matrix[curr_index].set_predecessor(
+                   *augmented_matrix[native_pt].entry);
+               augmented_matrix[native_pt].set_successor(
+                   *augmented_matrix[curr_index].entry);
+            }
+            native_pt = curr_index;
+
+            // add pointers from the previous inherited entries to
+            // the new native entry
+            if (inherited_pt > 0)
+               for (size_t ii = curr_index - 1; ii >= pointers[index + 1];
+                    --ii) {
+                  if (augmented_matrix[ii].entry_type == utils::NATIVE)
+                     break;
+                  else
+                     augmented_matrix[ii].set_successor(
+                         *augmented_matrix[curr_index].entry);
+               }
+
+            // add bridge to next row/column
+            // bridge is from augmented_matrix[curr_index] to
+            // augmented_matrix[bridge_pt]
+            if (bridge_pt + 1 < augmented_pointers[index] &&
+                index_type(*augmented_matrix[curr_index].entry, order) ==
+                    index_type(*augmented_matrix[bridge_pt + 1].entry, order))
+               augmented_matrix[curr_index].set_bridge(
+                   augmented_matrix[++bridge_pt]);
+            else if (index_type(*augmented_matrix[curr_index].entry, order) >=
+                     index_type(*augmented_matrix[bridge_pt].entry, order))
+               augmented_matrix[curr_index].set_bridge(
+                   augmented_matrix[bridge_pt]);
+
 #ifdef DEBUG_VERBOSE
             printf("(%ld,%ld,%d) native added (%ld,%ld,%d) at %ld\n",
                    matrix[matr_index].i, matrix[matr_index].j,
                    matrix[matr_index].a, augmented_matrix[curr_index].entry->i,
                    augmented_matrix[curr_index].entry->j,
                    augmented_matrix[curr_index].entry->a, curr_index);
+            if (augmented_matrix[curr_index].bridge != nullptr)
+               printf("(%ld,%ld,%d) bridge (%ld,%ld,%d)\n",
+                      augmented_matrix[curr_index].entry->i,
+                      augmented_matrix[curr_index].entry->j,
+                      augmented_matrix[curr_index].entry->a,
+                      augmented_matrix[curr_index].bridge->entry->i,
+                      augmented_matrix[curr_index].bridge->entry->j,
+                      augmented_matrix[curr_index].bridge->entry->a);
 #endif
             // if matrix and augmented_matrix have an entry at i
             // increase counter for augmented_matrix
@@ -138,7 +168,7 @@ augment_matrix(const T &matrix, const S &pointers, size_t h, size_t n,
                even = !even;
                prev_index++;
             }
-            // curr_index++;
+            curr_index++;
             matr_index++;
             // otherwise the entry is inherited
          } else if (index_type(*augmented_matrix[prev_index].entry, order) ==
@@ -155,18 +185,27 @@ augment_matrix(const T &matrix, const S &pointers, size_t h, size_t n,
                            index_type(*augmented_matrix[prev_index].entry,
                                       utils::ROW) -
                            1);
-               // add bridge to next row column 
-                   if (index_type(*augmented_matrix[curr_index].entry,
-                                         order) ==
-                              index_type(*augmented_matrix[bridge_pt].entry,
-                                         order)) augmented_matrix[curr_index]
-                       .set_bridge(augmented_matrix[bridge_pt]);
-               if (index_type(*augmented_matrix[curr_index].entry, order) ==
-                   index_type(*augmented_matrix[bridge_pt + 1].entry, order))
+
+               if (native_pt > 0)
+                  augmented_matrix[curr_index].set_predecessor(
+                      *augmented_matrix[native_pt].entry);
+
+               inherited_pt = curr_index;
+
+               // add bridge to next row/column
+               // bridge is from augmented_matrix[curr_index] to
+               // augmented_matrix[bridge_pt]
+               if (bridge_pt + 1 < augmented_pointers[index] &&
+                   index_type(*augmented_matrix[curr_index].entry, order) ==
+                       index_type(*augmented_matrix[bridge_pt + 1].entry,
+                                  order))
                   augmented_matrix[curr_index].set_bridge(
                       augmented_matrix[++bridge_pt]);
-               else
-                  bridge_pt++;
+               else if (index_type(*augmented_matrix[curr_index].entry,
+                                   order) >=
+                        index_type(*augmented_matrix[bridge_pt].entry, order))
+                  augmented_matrix[curr_index].set_bridge(
+                      augmented_matrix[bridge_pt]);
 #ifdef DEBUG_VERBOSE
                printf("(%ld,%ld,%d) inherited added (%ld,%ld,%d) at %ld\n",
                       augmented_matrix[prev_index].entry->i,
@@ -175,15 +214,23 @@ augment_matrix(const T &matrix, const S &pointers, size_t h, size_t n,
                       augmented_matrix[curr_index].entry->i,
                       augmented_matrix[curr_index].entry->j,
                       augmented_matrix[curr_index].entry->a, curr_index);
+               if (augmented_matrix[curr_index].bridge != nullptr)
+                  printf("(%ld,%ld,%d) bridge (%ld,%ld,%d)\n",
+                         augmented_matrix[curr_index].entry->i,
+                         augmented_matrix[curr_index].entry->j,
+                         augmented_matrix[curr_index].entry->a,
+                         augmented_matrix[curr_index].bridge->entry->i,
+                         augmented_matrix[curr_index].bridge->entry->j,
+                         augmented_matrix[curr_index].bridge->entry->a);
 #endif
+               curr_index++;
             }
-            curr_index++;
             // prev_index and even are updated regardless of assignment
             prev_index++;
             even = !even;
          }
 #ifdef DEBUG_VERBOSE
-         utils::print_sparse_as_dense(augmented_matrix, h, n);
+         utils::print_sparse_as_dense(augmented_matrix, 3 * h, n);
 #endif
       }
       // pointer to beginning of current row/column in augmented_matrix
@@ -201,24 +248,7 @@ augment_matrix(const T &matrix, const S &pointers, size_t h, size_t n,
       else
          index_vector[index - 1].set_bridge(augmented_matrix[bridge_pt]);
       index--;
-      // (index_type(*augmented_matrix[bridge_pt].entry, order) <= index)
 
-      // bridge_pt = augmented_pointers[n - 1];
-      // for (size_t index = 0; index < n; ++index) {
-      //    if (index_type(*augmented_matrix[bridge_pt].entry, order) ==
-      //    index)
-      //       index_vector[index].set_bridge(augmented_matrix[bridge_pt]);
-      //    if (bridge_pt + 1 < augmented_pointers[n] &&
-      //        index_type(*augmented_matrix[bridge_pt].entry, order) <
-      //        index
-      //        && index_type(*augmented_matrix[bridge_pt + 1].entry,
-      //        order)
-      //        == index)
-      //       index_vector[index].set_bridge(augmented_matrix[++bridge_pt]);
-      //    if (bridge_pt + 1 == augmented_pointers[n] &&
-      //        index_type(*augmented_matrix[bridge_pt].entry, order) <
-      //        index)
-      //       index_vector[index].set_bridge(augmented_matrix[bridge_pt]);
 #ifdef DEBUG_VERBOSE
       if (index_vector[index].bridge == nullptr)
          printf("%ld -> nullptr\n", index);
@@ -236,11 +266,11 @@ augment_matrix(const T &matrix, const S &pointers, size_t h, size_t n,
 /****************************************************************************************/
 
 template <typename T>
-inline cascading::augmented_entry<utils::entry<utils::e_type>> *
+inline cascading::augmented_entry<utils::ee> *
 augment_matrix(const T &matrix, size_t h, size_t n, size_t order) {
 
    // sort_by returns either row or column index depending on order
-   utils::sort_by<utils::entry<utils::e_type>> index_type;
+   utils::sort_by<utils::ee> index_type;
 
    // pointers store a pointer to the beginning of each row/column
    // in decreasing order
@@ -264,87 +294,30 @@ augment_matrix(const T &matrix, size_t h, size_t n, size_t order) {
 
 template <typename T>
 inline utils::e_type *extract_sketch(const T &index_vector, size_t i1,
-                                     size_t i2, size_t n) {
+                                     size_t i2, size_t n, size_t order) {
 
    utils::e_type *sketch = new utils::e_type[n]();
-   T ei1 = index_vector[std::min(i1 - 1, (size_t)0)]; // easier with i1-1
-   T ei2 = index_vector[i2];
+   auto ei2 = index_vector[i2];
 
-   for (size_t index = 0; index < n + 1; ++index) {
-      ei1 = ei1->bridge;
-      ei2 = ei2->bridge;
-      sketch[index] = ei2->a - ei1->a;
+   for (size_t index = 0; index < n; ++index) {
+      ei2 = *ei2.bridge;
+      sketch[index] = (&ei2)->entry->a;
    }
+
+   i1 = std::max((ssize_t)(i1 - 1), (ssize_t)0); // easier with i1-1
+   if (i1 == 0)
+      return sketch;
+   auto ei1 = index_vector[i1];
+
+   for (size_t index = 0; index < n; ++index) {
+      ei1 = *ei1.bridge;
+      sketch[index] -= (&ei1)->entry->a;
+   }
+   for (size_t index = 0; index < n; ++index)
+      printf("%d ", sketch[index]);
+   printf("\n");
+   // int c = getchar();
    return sketch;
 }
-
-/****************************************************************************************/
-
-template <typename T>
-inline void matrix_product(const T &A_index_vector, const T &C_index_vector,
-                           size_t i1, size_t i2, size_t j1, size_t j2,
-                           size_t n) {
-
-   size_t im, jm;
-
-   if (i1 == i2 && j1 == j2) {
-      utils::inner_product(
-          cascading::extract_sketch(A_index_vector, i1, i2, n),
-          cascading::extract_sketch(C_index_vector, j1, j2, n));
-   } else if (i1 == i2 && j1 < j2) {
-      jm = j1 + j2 / 2;
-      if (utils::inner_product(
-              cascading::extract_sketch(A_index_vector, i1, i2, n),
-              cascading::extract_sketch(C_index_vector, j1, jm, n)) != 0)
-         cascading::matrix_product(A_index_vector, C_index_vector, i1, i2, j1,
-                                   jm, n);
-      if (utils::inner_product(
-              cascading::extract_sketch(A_index_vector, i1, i2, n),
-              cascading::extract_sketch(C_index_vector, jm, j2, n)) != 0)
-         cascading::matrix_product(A_index_vector, C_index_vector, i1, i2, j1,
-                                   jm, n);
-   } else if (i1 < i2 && j1 == j2) {
-      im = i1 + i2 / 2;
-      if (utils::inner_product(
-              cascading::extract_sketch(A_index_vector, i1, im, n),
-              cascading::extract_sketch(C_index_vector, j1, j2, n)) != 0)
-         cascading::matrix_product(A_index_vector, C_index_vector, i1, im, j1,
-                                   j2, n);
-      if (utils::inner_product(
-              cascading::extract_sketch(A_index_vector, im, i2, n),
-              cascading::extract_sketch(C_index_vector, j1, j2, n)) != 0)
-         cascading::matrix_product(A_index_vector, C_index_vector, im, i2, j1,
-                                   j2, n);
-   } else {
-      im = i1 + i2 / 2;
-      jm = j1 + j2 / 2;
-      if (utils::inner_product(
-              cascading::extract_sketch(A_index_vector, i1, im, n),
-              cascading::extract_sketch(C_index_vector, j1, jm, n)) != 0)
-         cascading::matrix_product(A_index_vector, C_index_vector, i1, im, j1,
-                                   jm, n);
-      if (utils::inner_product(
-              cascading::extract_sketch(A_index_vector, i1, im, n),
-              cascading::extract_sketch(C_index_vector, jm, j2, n)) != 0)
-         cascading::matrix_product(A_index_vector, C_index_vector, i1, im, jm,
-                                   j2, n);
-      if (utils::inner_product(
-              cascading::extract_sketch(A_index_vector, im, i2, n),
-              cascading::extract_sketch(C_index_vector, j1, jm, n)) != 0)
-         cascading::matrix_product(A_index_vector, C_index_vector, im, i2, j1,
-                                   jm, n);
-      if (utils::inner_product(
-              cascading::extract_sketch(A_index_vector, im, i2, n),
-              cascading::extract_sketch(C_index_vector, jm, j2, n)) != 0)
-         cascading::matrix_product(A_index_vector, C_index_vector, im, i2, jm,
-                                   j2, n);
-   }
-}
-
-/****************************************************************************************/
-
-// template <typename T>
-// inline void matrix_product(const T &A_matrix, const T &C_matrix, size_t n)
-// {}
 
 } // namespace cascading

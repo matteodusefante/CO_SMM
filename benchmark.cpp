@@ -5,7 +5,10 @@
 #include "utils.h"
 // DEPENDECIES cascading.h utils.h
 #include "cascading.h"
+#include "coalesced.h"
 #include "sparsegen.h"
+
+#include "algorithm.h"
 
 #include <chrono>
 #include <ctime>
@@ -13,7 +16,6 @@
 #include <math.h>
 #include <string>
 
-#define DEBUG
 #define probability 10
 
 int main(__attribute__((unused)) int argc,
@@ -59,7 +61,7 @@ int main(__attribute__((unused)) int argc,
    //    }
    // }
 
-   typedef cascading::augmented_entry<utils::entry<utils::e_type>> ae_type;
+   // typedef cascading::augmented_entry<utils::entry<utils::e_type>> ae_type;
    // ae_type *index_vector = new ae_type[100];
    //
    // for (size_t index = 0; index < 100; ++index)
@@ -88,6 +90,13 @@ int main(__attribute__((unused)) int argc,
       C_matrix[i] = new utils::e_type[n]();
       AC_matrix[i] = new utils::e_type[n]();
    }
+
+   // for (size_t i = 0; i < n; ++i) {
+   //    for (size_t j = 0; j < n; ++j) {
+   //       A_matrix[i][j] = 1;
+   //       C_matrix[i][j] = 1;
+   //    }
+   // }
    sparsegen::generate_matrix(A_matrix, C_matrix, n, d, k);
 
    utils::matrix_multiplication(AC_matrix, A_matrix, C_matrix, n);
@@ -100,26 +109,39 @@ int main(__attribute__((unused)) int argc,
             C_nnz++;
       }
 
-   utils::entry<utils::e_type> *A_sparse =
-       utils::sparsify_matrix(A_matrix, A_nnz, n);
-   utils::entry<utils::e_type> *C_sparse =
-       utils::sparsify_matrix(C_matrix, C_nnz, n);
+   auto *A_sparse = utils::sparsify_matrix(A_matrix, A_nnz, n);
+   auto *C_sparse = utils::sparsify_matrix(C_matrix, C_nnz, n);
 
-   // utils::print_sparse_matrix(A_sparse, A_nnz);
-   utils::sparse_transpose(A_sparse,A_nnz,n,utils::COLUMN_MAJOR);
-   // utils::print_sparse_matrix(A_sparse, A_nnz);
-   utils::sparse_transpose(C_sparse,C_nnz,n,utils::ROW_MAJOR);
+   utils::sparse_transpose(A_sparse, A_nnz, n, utils::COLUMN_MAJOR);
+   utils::sparse_transpose(C_sparse, C_nnz, n, utils::ROW_MAJOR);
 
-   ae_type *A_index = cascading::augment_matrix(A_sparse, A_nnz, n, utils::ROW);
-   // ae_type *C_index = cascading::augment_matrix(C_sparse, C_nnz, n, utils::COLUMN);
+   utils::print_sparse_matrix(A_sparse, A_nnz);
+   utils::print_sparse_matrix(C_sparse, A_nnz);
+
+   utils::sparse_prefix_sum(A_sparse, A_nnz, utils::COLUMN);
+   utils::sparse_prefix_sum(C_sparse, C_nnz, utils::ROW);
+
+   utils::print_sparse_matrix(A_sparse, A_nnz);
+   utils::print_sparse_matrix(C_sparse, A_nnz);
+
+   utils::print_sparse_as_dense(A_sparse, A_nnz, n);
+   utils::print_sparse_as_dense(C_sparse, C_nnz, n);
+
+   // auto A_index = coalesced::range_coalesced(A_sparse, A_nnz, n, utils::ROW);
+   // auto C_index = coalesced::range_coalesced(C_sparse, C_nnz, n,
+   // utils::COLUMN);
+   auto A_index = cascading::augment_matrix(A_sparse, A_nnz, n, utils::ROW);
+   auto C_index = cascading::augment_matrix(C_sparse, C_nnz, n, utils::COLUMN);
+
+   algorithm::matrix_product(A_index, C_index, n);
 
    printf("A_nnz+C_nnz=%ld+%ld=%ld, AC_nnz=%ld, h/log n=%lf\n", A_nnz, C_nnz,
           A_nnz + C_nnz, AC_nnz, ((A_nnz + C_nnz) / log2(d)));
 
 #ifdef DEBUG
    // utils::print_matrix(matrix, d);
-   utils::print_matrix(A_matrix, n);
-   utils::print_matrix(C_matrix, n);
+   // utils::print_matrix(A_matrix, n);
+   // utils::print_matrix(C_matrix, n);
 
 #endif
 

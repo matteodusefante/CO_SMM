@@ -151,32 +151,33 @@ void generate_matrix(const T &A_matrix, const T &C_matrix, size_t n, size_t d,
 }
 
 /****************************************************************************************/
-
+//TO DO: RASMUS GENERATOR
 // template <typename T>
-// void rasmus_generator(const T &A_matrix, const T &C_matrix, size_t n, size_t d,
+// void rasmus_generator(const T &A_matrix, const T &C_matrix, size_t n, size_t
+// d,
 //                       size_t k) {
 
-   // p = int(sys.argv[1])
-   // q = int(sys.argv[2])
-   //
-   // def indicator(i,p):
-   //     for j in xrange(p):
-   //         if j==i: print q,
-   //         else: print 0,
-   //
-   // for (size_t i = 0; i < p; ++i1) {
-   //    for (size_t i = 0; i < p; ++i2) {
-   //       A_matrix[i][j] =
-   //    }
-   // }
+// p = int(sys.argv[1])
+// q = int(sys.argv[2])
+//
+// def indicator(i,p):
+//     for j in xrange(p):
+//         if j==i: print q,
+//         else: print 0,
+//
+// for (size_t i = 0; i < p; ++i1) {
+//    for (size_t i = 0; i < p; ++i2) {
+//       A_matrix[i][j] =
+//    }
+// }
 
-   // for i1 in xrange(p):
-   //     for i2 in xrange(p):
-   //         print (p-1)*"1 " + "1",
-   //         indicator(i1,p)
-   //         for j in xrange(p):
-   //             indicator((j*i1+i2)%p,p)
-   //         print ""
+// for i1 in xrange(p):
+//     for i2 in xrange(p):
+//         print (p-1)*"1 " + "1",
+//         indicator(i1,p)
+//         for j in xrange(p):
+//             indicator((j*i1+i2)%p,p)
+//         print ""
 // }
 
 } // namespace sparsegen

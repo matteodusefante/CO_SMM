@@ -7,6 +7,7 @@
 // #define NDEBUG
 #include <cassert>
 
+#define DEBUG
 #define DEBUG_VERBOSE
 
 namespace utils {
@@ -20,6 +21,8 @@ static const ssize_t ROW = ROW_MAJOR;
 
 static const size_t INHERITED = 0;
 static const size_t NATIVE = 1;
+
+/****************************************************************************************/
 
 template <typename T> class entry {
 
@@ -47,6 +50,21 @@ template <typename T>
 entry<T>::entry(size_t i, size_t j, const T &a) : i(i), j(j), a(a) {
    ;
 }
+
+typedef entry<e_type> ee;
+
+/****************************************************************************************/
+
+template <typename T> struct sort_by {
+   size_t operator()(const T &entry, ssize_t type) const {
+      if (type == COLUMN_MAJOR)
+         return entry.j;
+      else if (type == ROW_MAJOR)
+         return entry.i;
+      else
+         exit(EXIT_FAILURE);
+   }
+};
 /****************************************************************************************/
 
 template <typename T>
@@ -90,7 +108,7 @@ inline void print_sparse_as_dense(const T &matrix, size_t h, size_t n) {
    bool found = false;
    for (size_t i = 0; i < n; ++i) {
       for (size_t j = 0; j < n; ++j) {
-         for (size_t k = 0; k < 3 * h; ++k) {
+         for (size_t k = 0; k < h; ++k) {
             if (matrix[k].entry == nullptr)
                continue;
             if ((matrix[k].entry->i == i) && (matrix[k].entry->j == j) &&
@@ -110,6 +128,31 @@ inline void print_sparse_as_dense(const T &matrix, size_t h, size_t n) {
       }
       printf("\n");
    }
+   printf("\n");
+}
+
+/****************************************************************************************/
+// Template specialization for utils::ee *
+
+inline void print_sparse_as_dense(utils::ee *const &matrix, size_t h,
+                                  size_t n) {
+
+   bool found = false;
+   for (size_t i = 0; i < n; ++i) {
+      for (size_t j = 0; j < n; ++j) {
+         for (size_t k = 0; k < h; ++k) {
+            if ((matrix[k].i == i) && (matrix[k].j == j)) {
+               found = true;
+               printf("%d\t", matrix[k].a);
+            }
+         }
+         if (!found)
+            printf("0\t");
+         found = false;
+      }
+      printf("\n");
+   }
+   printf("\n");
 }
 
 /****************************************************************************************/
@@ -134,33 +177,23 @@ inline void dense_column_prefix_sum(const T &matrix, size_t n) {
 /****************************************************************************************/
 
 template <typename T>
-inline void sparse_column_prefix_sum(const T &matrix, size_t h) {
+inline void sparse_prefix_sum(const T &matrix, size_t h, size_t order) {
 
-   size_t column = 0;
+   // sort_by returns either row or column index depending on order
+   utils::sort_by<utils::ee> index_type;
+
+   size_t index = 0;
    size_t sum = 0;
 
-   for (T *entry = &matrix[0]; entry != &matrix[h]; ++entry) {
-      if (entry->j == column)
+   for (auto *entry = &matrix[0]; entry != &matrix[h]; ++entry) {
+      if (index_type(*entry, order) == index){
          sum = entry->a += sum;
-      else {
-         column = entry->j;
-         sum = 0;
+      } else {
+         index = index_type(*entry, order);
+         sum = entry->a ;
       }
    }
 }
-
-/****************************************************************************************/
-
-template <typename T> struct sort_by {
-   size_t operator()(const T &entry, ssize_t type) const {
-      if (type == COLUMN_MAJOR)
-         return entry.j;
-      else if (type == ROW_MAJOR)
-         return entry.i;
-      else
-         exit(EXIT_FAILURE);
-   }
-};
 
 /****************************************************************************************/
 
@@ -208,13 +241,15 @@ inline void matrix_vector_multiplication(const T &matrix, const S &out_vector,
 
 /****************************************************************************************/
 
-template <typename T, typename S>
-inline size_t inner_product(const T &vec1, const T &vec2, size_t h) {
+template <typename T>
+inline size_t inner_product(const T &vec1, const T &vec2, size_t n) {
 
    size_t temp = 0;
 
-   for (size_t index = 0; index < h; ++index)
+   for (size_t index = 0; index < n; ++index)
       temp += vec1[index] * vec2[index];
+
+   printf("= %ld \n", temp);
 
    return temp;
 }
