@@ -2,30 +2,31 @@
 
 #include <tgmath.h>
 
-#include "utils.h"
+#include "matrix.hpp"
+#include "utils.hpp"
 // DEPENDECIES cascading.h utils.h
-#include "cascading.h"
-#include "coalesced.h"
-#include "sparsegen.h"
+#include "cascading.hpp"
+#include "coalesced.hpp"
+#include "sparsegen.hpp"
 
-#include "algorithm.h"
+#include "algorithm.hpp"
 
 #include <chrono>
 #include <ctime>
-#include <iostream>
 #include <math.h>
 #include <string>
 
 #define probability 10
 
-int main(__attribute__((unused)) int argc,
-         __attribute__((unused)) char *argv[]) {
+// #define LOG(...) std::cout , __VA_ARGS__ , std::endl
+
+int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[]) {
 
    // std::srand(std::time(nullptr));
    // std::srand(1);
 
-   // typedef int32_t e_type; // matrix entry type is unsigned 32-bit integers
-   // typedef utils::entry<e_type> ae_type;
+   // typedef int32_t entry_t; // matrix entry type is unsigned 32-bit integers
+   // typedef utils::entry<entry_t> aentry_t;
 
    // size_t A_c = 5;
    // size_t C_c = 5;
@@ -34,11 +35,11 @@ int main(__attribute__((unused)) int argc,
    // size_t A_h = A_c * n;
    // size_t C_h = C_c * n;
 
-   // utils::entry<utils::e_type> *A_matrix = new
-   // utils::entry<utils::e_type>[A_h]; utils::entry<utils::e_type> *C_matrix =
-   // new utils::entry<utils::e_type>[C_h];
+   // utils::entry<utils::entry_t> *A_matrix = new
+   // utils::entry<utils::entry_t>[A_h]; utils::entry<utils::entry_t> *C_matrix =
+   // new utils::entry<utils::entry_t>[C_h];
 
-   // utils::e_type *buff = new utils::e_type[n];
+   // utils::entry_t *buff = new utils::entry_t[n];
 
    // for (size_t index = 0; index < n; ++index)
    //    buff[index] = index;
@@ -48,7 +49,7 @@ int main(__attribute__((unused)) int argc,
    // for (size_t column = 0; column < n; ++column) {
    //    std::random_shuffle(buff, buff + n);
    //    for (size_t row = 0; row < n; ++row) {
-   //       A_matrix[column * n + row] = utils::entry<utils::e_type>(
+   //       A_matrix[column * n + row] = utils::entry<utils::entry_t>(
    //           rand() % RAND_MAX - RAND_MAX, buff[row], column);
    //    }
    // }
@@ -56,87 +57,108 @@ int main(__attribute__((unused)) int argc,
    // for (size_t row = 0; row < n; ++row) {
    //    std::random_shuffle(buff, buff + n);
    //    for (size_t column = 0; column < n; ++column) {
-   //       C_matrix[row * n + column] = utils::entry<utils::e_type>(
+   //       C_matrix[row * n + column] = utils::entry<utils::entry_t>(
    //           rand() % RAND_MAX - RAND_MAX, row, buff[column]);
    //    }
    // }
 
-   // typedef cascading::augmented_entry<utils::entry<utils::e_type>> ae_type;
-   // ae_type *index_vector = new ae_type[100];
+   // typedef cascading::augmented_entry<utils::entry<utils::entry_t>> aentry_t;
+   // aentry_t *index_vector = new aentry_t[100];
    //
    // for (size_t index = 0; index < 100; ++index)
-   //    index_vector[index] = cascading::augmented_entry<utils::e_type>();
+   //    index_vector[index] = cascading::augmented_entry<utils::entry_t>();
 
-   // cascading::augmented_entry<ae_type> *A_index_vector =
-   //     new cascading::augmented_entry<ae_type>[n];
+   // cascading::augmented_entry<aentry_t> *A_index_vector =
+   //     new cascading::augmented_entry<aentry_t>[n];
    //
    // cascading::augment_matrix(A_matrix, A_index_vector, A_h, n);
 
    std::srand(std::time(nullptr));
 
-   size_t d = pow(2, 2);
-   size_t n = pow(2, 4);
-   size_t A_nnz = 0;
-   size_t C_nnz = 0;
-   size_t AC_nnz = 0;
-   size_t k = pow(d, 2) * n / log2(n);
+   ssize_t d = pow(2, 2);
+   matrix::index_t n = pow(2, 4);
+   ssize_t A_nnz = 0;
+   ssize_t C_nnz = 0;
+   ssize_t AC_nnz = 0;
+   ssize_t k = pow(d, 2) * n / log2(n);
 
-   utils::e_type **A_matrix = new utils::e_type *[n];
-   utils::e_type **C_matrix = new utils::e_type *[n];
-   utils::e_type **AC_matrix = new utils::e_type *[n];
+   matrix::dense<matrix::entry_t> A_matrix(n);
+   matrix::dense<matrix::entry_t> C_matrix(n);
 
-   for (size_t i = 0; i < n; ++i) {
-      A_matrix[i] = new utils::e_type[n]();
-      C_matrix[i] = new utils::e_type[n]();
-      AC_matrix[i] = new utils::e_type[n]();
+   for (matrix::index_t i = 0; i < n; ++i) {
+      for (matrix::index_t j = 0; j < n; ++j) {
+         A_matrix[i][j] = 1;
+         C_matrix[i][j] = 1;
+      }
    }
 
-   // for (size_t i = 0; i < n; ++i) {
-   //    for (size_t j = 0; j < n; ++j) {
-   //       A_matrix[i][j] = 1;
-   //       C_matrix[i][j] = 1;
-   //    }
-   // }
-   sparsegen::generate_matrix(A_matrix, C_matrix, n, d, k);
+   // Haar matrix
+   // std::tie(A_matrix, C_matrix) = sparsegen::generate_matrix(n, d, k);
 
-   utils::matrix_multiplication(AC_matrix, A_matrix, C_matrix, n);
+   auto AC_matrix = utils::matrix_multiplication(A_matrix, C_matrix, n);
 
-   for (size_t i = 0; i < n; ++i)
-      for (size_t j = 0; j < n; ++j) {
+   for (matrix::index_t i = 0; i < n; ++i) {
+      for (matrix::index_t j = 0; j < n; ++j) {
          if (A_matrix[i][j] != 0)
-            A_nnz++;
+            ++A_nnz;
          if (C_matrix[i][j] != 0)
-            C_nnz++;
+            ++C_nnz;
+         if (AC_matrix[i][j] != 0)
+            ++AC_nnz;
       }
+   }
 
-   auto *A_sparse = utils::sparsify_matrix(A_matrix, A_nnz, n);
-   auto *C_sparse = utils::sparsify_matrix(C_matrix, C_nnz, n);
+   utils::print_matrix(A_matrix);
+   utils::print_matrix(C_matrix);
 
-   utils::sparse_transpose(A_sparse, A_nnz, n, utils::COLUMN_MAJOR);
-   utils::sparse_transpose(C_sparse, C_nnz, n, utils::ROW_MAJOR);
+   auto A_sparse = utils::sparsify_matrix(A_matrix, n, utils::COLUMN_MAJOR);
+   auto C_sparse = utils::sparsify_matrix(C_matrix, n, utils::ROW_MAJOR);
 
-   utils::print_sparse_matrix(A_sparse, A_nnz);
-   utils::print_sparse_matrix(C_sparse, A_nnz);
+   // utils::sparse_transpose(A_sparse, n, utils::COLUMN_MAJOR);
+   // utils::sparse_transpose(C_sparse, n, utils::ROW_MAJOR);
 
-   utils::sparse_prefix_sum(A_sparse, A_nnz, utils::COLUMN);
-   utils::sparse_prefix_sum(C_sparse, C_nnz, utils::ROW);
+   utils::print_sparse_matrix(A_sparse);
+   utils::print_sparse_matrix(C_sparse);
 
-   utils::print_sparse_matrix(A_sparse, A_nnz);
-   utils::print_sparse_matrix(C_sparse, A_nnz);
+   utils::sparse_prefix_sum(A_sparse);
+   utils::sparse_prefix_sum(C_sparse);
+   //
+   utils::print_sparse_matrix(A_sparse);
+   utils::print_sparse_matrix(C_sparse);
+   //
+   utils::print_sparse_as_dense(A_sparse, n);
+   std::cout << std::endl;
+   utils::print_sparse_as_dense(C_sparse, n);
+   //
 
-   utils::print_sparse_as_dense(A_sparse, A_nnz, n);
-   utils::print_sparse_as_dense(C_sparse, C_nnz, n);
+   // std::vector<bucket<utils::coo_entry> *>
 
-   // auto A_index = coalesced::range_coalesced(A_sparse, A_nnz, n, utils::ROW);
-   // auto C_index = coalesced::range_coalesced(C_sparse, C_nnz, n,
-   // utils::COLUMN);
-   auto A_index = cascading::augment_matrix(A_sparse, A_nnz, n, utils::ROW);
-   auto C_index = cascading::augment_matrix(C_sparse, C_nnz, n, utils::COLUMN);
+   // auto A_range_coalesced = coalesced::range_coalesced(A_sparse, A_nnz, n);
+   // auto C_range_coalesced = coalesced::range_coalesced(C_sparse, C_nnz, n);
 
-   algorithm::matrix_product(A_index, C_index, n);
+   auto A_cascading = cascading::augment_matrix(A_sparse, n);
+   auto C_cascading = cascading::augment_matrix(C_sparse, n);
 
-   printf("A_nnz+C_nnz=%ld+%ld=%ld, AC_nnz=%ld, h/log n=%lf\n", A_nnz, C_nnz,
-          A_nnz + C_nnz, AC_nnz, ((A_nnz + C_nnz) / log2(d)));
+   // LOG("x","1");
+   // #ifdef DEBUG_VERBOSE
+   //    for (size_t index = 0; index < n; ++index) {
+   //       std::cout << std::endl << "native : ";
+   //       for (auto it = std::begin(A_range_coalesced.index_vector[index]->native);
+   //            it != std::end(A_range_coalesced.index_vector[index]->native); ++it)
+   //          std::cout << "(" << it->i << "," << it->j << "," << it->a << ") ";
+   //       std::cout << std::endl << "inhert : ";
+   //       for (auto it = std::begin(A_range_coalesced.index_vector[index]->inhert);
+   //            it != std::end(A_range_coalesced.index_vector[index]->inhert); ++it)
+   //          std::cout << "(" << it->i << "," << it->j << "," << it->a << ") ";
+   //    }
+   // #endif
+   std::cout << std::endl;
+   //
+   // algorithm::matrix_product(A_range_coalesced, C_range_coalesced, n);
+   algorithm::matrix_product(A_cascading, C_cascading, n);
+   //
+   // printf("A_nnz+C_nnz=%ld+%ld=%ld, AC_nnz=%ld, h/log n=%lf\n", A_nnz, C_nnz,
+   //        A_nnz + C_nnz, AC_nnz, ((A_nnz + C_nnz) / log2(d)));
 
 #ifdef DEBUG
    // utils::print_matrix(matrix, d);

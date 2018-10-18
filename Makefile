@@ -18,10 +18,10 @@ endif
 CFLAGS = -Wall -Wextra
 CFLAGS += -std=c++11
 #CFLAGS += -fopenmp
-#CFLAGS += -static -g -S#debug
+CFLAGS += -g # - static -S#debug
 #CFLAGS += -lpapi
-CFLAGS += -O3 -pipe -mfpmath=sse -march=native -funroll-loops -ffast-math
-#CFLAGS += -fprefetch-loop-arrays
+#CFLAGS += -O3 -pipe -mfpmath=sse -march=native -funroll-loops -ffast-math
+# CFLAGS += -fprefetch-loop-arrays
 
 # LIB = -I $(BOOST_P) #for boost
 # BIN = -L $(BOOST_B) #for boost binaries
